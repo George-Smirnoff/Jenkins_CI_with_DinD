@@ -1,0 +1,66 @@
+apiVersion: v1
+data:
+  .dockerconfigjson: eyJhdXRocyI6eyJsb2NhbGhvc3Q6NTAwMCI6eyJ1c2VybmFtZSI6InVzZXIxIiwicGFzc3dvcmQiOiJwYXNzd2QiLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiYXV0aCI6ImRYTmxjakU2Y0dGemMzZGsifX19
+kind: Secret
+metadata:
+  name: my-private-registry-secret
+type: kubernetes.io/dockerconfigjson
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-jenkins
+spec:
+  ports:
+  - nodePort: 32000
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    run: my-jenkins
+  sessionAffinity: None
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      run: my-jenkins
+  template:
+    metadata:
+      labels:
+        run: my-jenkins 
+    spec:
+      imagePullSecrets:
+      - name: my-private-registry-secret
+      containers:
+      - name: my-jenkins
+        image: localhost:5000/my-jenkins-with-docker:v1.15.5
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsUser: 0
+        env:
+          - name: DOCKER_TLS_CERTDIR 
+            value: ""
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 40
+          periodSeconds: 10
+          timeoutSeconds: 15
+        volumeMounts:
+          - mountPath: /var/run/docker.sock
+            name: docker-sock
+          - mountPath: /var/jenkins_home
+            name: jenkins-data
+      volumes:
+      - name: docker-sock 
+        hostPath:
+          path: /var/run/docker.sock
+      - name: jenkins-data
+        hostPath:
+          path: /Users/hsmirnou/kubernetes/Ready_project/jenkins_CI/jenkins_data
